@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ObzvonPro</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #0f0f1a;
+      color: #ffffff;
+    }
+    header {
+      background-color: #1a1a2e;
+      padding: 1rem;
+      text-align: center;
+    }
+    header h1 {
+      color: #67c6ff;
+    }
+    nav {
+      display: flex;
+      justify-content: center;
+      gap: 2rem;
+      background-color: #121225;
+      padding: 1rem 0;
+    }
+    nav a {
+      color: #a8a8ff;
+      text-decoration: none;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .container {
+      max-width: 800px;
+      margin: 2rem auto;
+      padding: 1rem;
+      background-color: #1f1f2e;
+      border-radius: 10px;
+    }
+    button {
+      background-color: #00bcd4;
+      border: none;
+      padding: 0.5rem 1rem;
+      color: white;
+      font-weight: bold;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    input {
+      padding: 0.5rem;
+      margin: 0.5rem 0;
+      border-radius: 5px;
+      border: none;
+      width: 100%;
+    }
+    .hidden { display: none; }
+    .profile, .store, .admin-panel, .requests-panel { margin-top: 2rem; }
+    .item { margin: 1rem 0; padding: 1rem; background: #2a2a3f; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>ObzvonPro</h1>
+  </header>
+  <nav>
+    <a onclick="showPage('main')">Главная</a>
+    <a onclick="showPage('store')">Магазин</a>
+    <a onclick="showPage('register')">Регистрация</a>
+    <a id="adminNav" class="hidden" onclick="showPage('admin')">Админ-панель</a>
+    <a id="requestsNav" class="hidden" onclick="showPage('requests')">Заявки</a>
+  </nav>
+  <div class="container" id="main">
+    <h2>Добро пожаловать в ObzvonPro</h2>
+    <p>Поддержка и прохождение обзвонов в Grand Mobile.</p>
+    <div id="profile" class="profile hidden">
+      <h3>Профиль</h3>
+      <p><strong>Имя:</strong> <span id="userName"></span></p>
+      <p><strong>ID:</strong> <span id="userId"></span></p>
+      <p><strong>Баланс:</strong> <span id="userCoins"></span> коинов</p>
+      <p><strong>Уровень Админа:</strong> <span id="userLevel"></span></p>
+    </div>
+  </div>
+  <div class="container hidden" id="register">
+    <h2>Регистрация</h2>
+    <input type="text" id="regName" placeholder="Имя" />
+    <input type="text" id="regId" placeholder="ID" />
+    <button onclick="registerUser()">Зарегистрироваться</button>
+  </div>
+  <div class="container hidden" id="store">
+    <h2>Магазин</h2>
+    <div class="item">
+      <p>Обзвон на ЛД — <strong>120 коинов</strong></p>
+      <button onclick="openRequestForm(120, 'Обзвон на ЛД')">Купить</button>
+    </div>
+    <div class="item">
+      <p>Обзвон на СС — <strong>100 коинов</strong></p>
+      <button onclick="openRequestForm(100, 'Обзвон на СС')">Купить</button>
+    </div>
+    <div class="item">
+      <p>Обзвон на АДМ — <strong>80 коинов</strong></p>
+      <button onclick="openRequestForm(80, 'Обзвон на АДМ')">Купить</button>
+    </div>
+    <div id="requestForm" class="hidden">
+      <h3>Заполните данные</h3>
+      <input type="text" id="nick" placeholder="Ваш ник" />
+      <input type="text" id="server" placeholder="Сервер" />
+      <input type="text" id="contact" placeholder="Discord или Telegram" />
+      <button onclick="submitRequest()">Отправить заявку</button>
+    </div>
+  </div>
+  <div class="container hidden" id="admin">
+    <h2>Админ-панель</h2>
+    <input type="text" id="targetId" placeholder="ID пользователя" />
+    <input type="number" id="amount" placeholder="Сколько коинов выдать" />
+    <button onclick="addCoins()">Выдать коины</button>
+    <br /><br />
+    <input type="text" id="banId" placeholder="ID для бана" />
+    <button onclick="banUser()">Выдать бан</button>
+    <br /><br />
+    <input type="text" id="muteId" placeholder="ID для мута" />
+    <button onclick="muteUser()">Выдать мут</button>
+    <br /><br />
+    <input type="text" id="adminLevelId" placeholder="ID пользователя для повышения" />
+    <input type="number" id="newAdminLevel" placeholder="Уровень 1-4" />
+    <button onclick="grantAdminLevel()">Выдать уровень админа</button>
+
+    <hr style="margin: 2rem 0; border-color: #444;" />
+    <h3>Поиск ID по нику</h3>
+    <input type="text" id="searchNick" placeholder="Введите ник для поиска" />
+    <button onclick="findIdByNick()">Найти ID</button>
+    <p id="searchResult" style="margin-top:1rem; font-weight: bold;"></p>
+  </div>
+  <div class="container hidden" id="requests">
+    <h2>Заявки от пользователей</h2>
+    <ul id="requestsList"></ul>
+  </div>
+  <script>
+    let users = JSON.parse(localStorage.getItem('users') || '{}');
+    let currentUser = localStorage.getItem('currentUser');
+    let bannedUsers = new Set();
+    let mutedUsers = new Set();
+    let pendingRequests = [];
+    let selectedRequest = null;
+
+    function save() {
+      localStorage.setItem('users', JSON.stringify(users));
+      localStorage.setItem('currentUser', currentUser);
+    }
+
+    function showPage(page) {
+      document.querySelectorAll('.container').forEach((el) =>
+        el.classList.add('hidden')
+      );
+      document.getElementById(page).classList.remove('hidden');
+      if (page === 'main') updateProfile();
+      if (page === 'requests') loadRequests();
+    }
+
+    function registerUser() {
+      const name = document.getElementById('regName').value.trim();
+      const id = document.getElementById('regId').value.trim();
+      if (!name || !id) return alert('Заполните все поля');
+      if (users[id]) return alert('Пользователь уже существует');
+      users[id] = { name: name, coins: 0, adminLevel: name === 'Mher' ? 5 : 0 };
+      currentUser = id;
+      save();
+      alert('Регистрация успешна');
+      showPage('main');
+    }
+
+    function updateProfile() {
+      if (!currentUser || !users[currentUser])
+        return document.getElementById('profile').classList.add('hidden');
+      const u = users[currentUser];
+      document.getElementById('userName').textContent = u.name;
+      document.getElementById('userId').textContent = currentUser;
+      document.getElementById('userCoins').textContent = u.coins;
+      document.getElementById('userLevel').textContent = u.adminLevel || 0;
+      document.getElementById('profile').classList.remove('hidden');
+      if (u.adminLevel >= 1) document.getElementById('adminNav').classList.remove('hidden');
+      if (u.adminLevel >= 5) document.getElementById('requestsNav').classList.remove('hidden');
+    }
+
+    function addCoins() {
+      const id = document.getElementById('targetId').value.trim();
+      const amount = parseInt(document.getElementById('amount').value);
+      if (!users[id]) return alert('Пользователь не найден');
+      if (isNaN(amount)) return alert('Неверное количество');
+      users[id].coins += amount;
+      if (currentUser === id) updateProfile();
+      save();
+      alert(`Выдано ${amount} коинов пользователю ${users[id].name}`);
+    }
+
+    function banUser() {
+      const id = document.getElementById('banId').value.trim();
+      if (!users[id]) return alert('Пользователь не найден');
+      bannedUsers.add(id);
+      alert('Пользователь забанен');
+    }
+
+    function muteUser() {
+      const id = document.getElementById('muteId').value.trim();
+      if (!users[id]) return alert('Пользователь не найден');
+      mutedUsers.add(id);
+      alert('Пользователь получил мут');
+    }
+
+    function grantAdminLevel() {
+      const id = document.getElementById('adminLevelId').value.trim();
+      const level = parseInt(document.getElementById('newAdminLevel').value);
+      if (!users[id]) return alert('Пользователь не найден');
+      if (!users[currentUser] || users[currentUser].adminLevel !== 5)
+        return alert('Нет прав');
+      if (level < 1 || level > 4) return alert('Неверный уровень (1-4)');
+      users[id].adminLevel = level;
+      save();
+      alert(`Пользователю ${users[id].name} выдан уровень ${level}`);
+    }
+
+    function openRequestForm(cost, itemName) {
+      if (!currentUser || !users[currentUser]) return alert('Сначала зарегистрируйтесь');
+      if (users[currentUser].coins < cost) return alert('Недостаточно коинов');
+      selectedRequest = { cost, itemName };
+      document.getElementById('requestForm').classList.remove('hidden');
+    }
+
+    function submitRequest() {
+      const nick = document.getElementById('nick').value.trim();
+      const server = document.getElementById('server').value.trim();
+      const contact = document.getElementById('contact').value.trim();
+      if (!nick || !server || !contact) return alert('Заполните все поля формы');
+      users[currentUser].coins -= selectedRequest.cost;
+      pendingRequests.push({
+        user: users[currentUser].name,
+        id: currentUser,
+        type: selectedRequest.itemName,
+        nick,
+        server,
+        contact,
+      });
+      document.getElementById('requestForm').classList.add('hidden');
+      updateProfile();
+      save();
+      alert('Заявка отправлена');
+    }
+
+    function loadRequests() {
+      const list = document.getElementById('requestsList');
+      list.innerHTML = '';
+      pendingRequests.forEach((req) => {
+        const li = document.createElement('li');
+        li.innerHTML = `<strong>${req.type}</strong> от ${req.user} (ID: ${req.id})<br>Ник: ${req.nick}<br>Сервер: ${req.server}<br>Контакт: ${req.contact}`;
+        list.appendChild(li);
+      });
+    }
+
+    // Поиск ID по нику в админ-панели
+    function findIdByNick() {
+      const nick = document.getElementById('searchNick').value.trim();
+      const resultElem = document.getElementById('searchResult');
+      if (!nick) {
+        resultElem.textContent = 'Введите ник для поиска.';
+        return;
+      }
+      const entry = Object.entries(users).find(
+        ([id, u]) => u.name.toLowerCase() === nick.toLowerCase()
+      );
+      if (entry) {
+        const [id, user] = entry;
+        resultElem.textContent = `Пользователь "${user.name}" имеет ID: ${id}`;
+      } else {
+        resultElem.textContent = 'Пользователь с таким ником не найден.';
+      }
+    }
+
+    if (currentUser && users[currentUser]) {
+      updateProfile();
+    }
+    showPage('main');
+  </script>
+</body>
+</html>
